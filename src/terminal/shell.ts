@@ -1,59 +1,106 @@
 import * as vscode from 'vscode';
+import * as child_process from 'child_process';
 import { Player } from '../playback/player';
+import { classifySuccess, classifyFailure } from './classify';
 
-const GIT_TERMINAL_EVENTS: Record<string, string> = {
-  'git commit': 'commit.mp3',
-  'git push': 'push.mp3',
-};
+interface ShellExecution {
+  commandLine: { value: string };
+  cwd?: vscode.Uri;
+}
+
+interface TerminalShellExecutionEndEvent {
+  execution: { commandLine: { value: string }; cwd?: vscode.Uri };
+  exitCode: number | undefined;
+}
 
 export class TerminalShellEvents {
   private disposables: vscode.Disposable[] = [];
-  private lastTerminalFailTime = 0;
-  private lastTerminalGitTime = 0;
-  private readonly DEBOUNCE_MS = 500;
+  private running = new Map<number, { cmd: string; cwd: vscode.Uri | undefined }>();
+  private busyCount = 0;
 
   constructor(private player: Player) {}
 
   public activate(): void {
-    const shellIntegration = (vscode.window as any).onDidEndTerminalShellExecution;
-    if (!shellIntegration) {
+    const api = (vscode.window as any).onDidEndTerminalShellExecution;
+    if (typeof api !== 'function') {
+      this.player.log('Terminal shell integration API not available');
       return;
     }
-
     this.disposables.push(
-      shellIntegration((e: any) => {
-        if (!e || e.exitCode === undefined) {
+      api((e: TerminalShellExecutionEndEvent) => {
+        if (!e || e.exitCode === undefined || e.exitCode === 130) {
+          this.removeRunning(e);
           return;
         }
-
-        if (e.exitCode !== 0) {
-          const now = Date.now();
-          if (now - this.lastTerminalFailTime > this.DEBOUNCE_MS) {
-            this.lastTerminalFailTime = now;
+        const cmd = e.execution.commandLine.value.trim();
+        if (e.exitCode === 0) {
+          const sound = classifySuccess(cmd);
+          if (sound) {
+            void this.player.play(sound);
+          }
+        } else {
+          const failure = classifyFailure(cmd);
+          const cwdPath = e.execution.cwd?.fsPath;
+          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          const cwd = cwdPath || workspaceRoot;
+          if (failure === 'maybe_conflict' && cwd) {
+            child_process.execFile('git', ['diff', '--name-only', '--diff-filter=U'], { cwd, windowsHide: true }, (err, stdout) => {
+              if (!err && stdout.trim()) {
+                void this.player.play('merge_conflict.mp3');
+              } else {
+                void this.player.play('terminal_fail.mp3');
+              }
+            });
+          } else if (failure === 'tests_fail') {
+            void this.player.play('tests_fail.mp3');
+          } else {
             void this.player.play('terminal_fail.mp3');
           }
         }
-
-        const commandLine = e.commandLine || '';
-        const trimmed = commandLine.trim().toLowerCase();
-        for (const [cmd, sound] of Object.entries(GIT_TERMINAL_EVENTS)) {
-          if (trimmed === cmd || trimmed.startsWith(cmd + ' ')) {
-            const now = Date.now();
-            if (now - this.lastTerminalGitTime > this.DEBOUNCE_MS) {
-              this.lastTerminalGitTime = now;
-              void this.player.play(sound);
-            }
-            break;
-          }
-        }
+        this.removeRunning(e);
       })
     );
+
+    const onStart = (vscode.window as any).onDidStartTerminalShellExecution;
+    if (typeof onStart === 'function') {
+      this.disposables.push(
+        onStart((e: any) => {
+          if (e?.terminal && e.execution) {
+            this.running.set(e.execution.id ?? Date.now() + Math.random(), {
+              cmd: e.execution.commandLine.value,
+              cwd: e.execution.cwd,
+            });
+            this.busyCount++;
+          }
+        })
+      );
+    }
+
+    const onClose = (vscode.window as any).onDidCloseTerminal;
+    if (typeof onClose === 'function') {
+      this.disposables.push(
+        onClose((t: vscode.Terminal) => {
+          for (const [id, entry] of this.running) {
+            if (entry.cmd) {
+              this.running.delete(id);
+              this.busyCount = Math.max(0, this.busyCount - 1);
+            }
+          }
+        })
+      );
+    }
+  }
+
+  private removeRunning(e: TerminalShellExecutionEndEvent): void {
+    this.busyCount = Math.max(0, this.busyCount - 1);
+  }
+
+  public get busy(): boolean {
+    return this.busyCount > 0;
   }
 
   public dispose(): void {
-    for (const disposable of this.disposables) {
-      disposable.dispose();
-    }
+    this.disposables.forEach((d) => d.dispose());
     this.disposables = [];
   }
 }

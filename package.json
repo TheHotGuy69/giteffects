@@ -1,11 +1,11 @@
 {
   "name": "giteffects",
   "displayName": "GitEffects",
-  "description": "Plays sound effects for git events (commit, push, merge conflict, terminal failure)",
+  "description": "Plays sound effects for git and terminal events",
   "version": "0.1.0",
   "publisher": "giteffects",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.93.0"
   },
   "categories": [
     "Other"
@@ -36,24 +36,33 @@
           "description": "Custom path to sound files directory. Leave empty to use bundled sounds."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "giteffects.toggle",
+        "title": "GitEffects: Toggle On/Off"
+      },
+      {
+        "command": "giteffects.testSound",
+        "title": "GitEffects: Play a Test Sound"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "package": "npx @vscode/vsce package --allow-missing-repository"
+    "package": "npm run compile && vsce package",
+    "test": "node out/test-classify.js"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.93.0",
+    "@vscode/vsce": "^2.22.0",
     "typescript": "^5.3.0"
-  },
-  "dependencies": {
-    "play-sound": "^1.1.6"
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/TheHotGuy69/giteffects.git"
   },
   "license": "MIT"
 }

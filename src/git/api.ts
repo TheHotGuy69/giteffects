@@ -1,56 +1,58 @@
 import * as vscode from 'vscode';
 import { Player } from '../playback/player';
 
-export class GitApiEvents {
-  private gitExtension: vscode.Extension<any> | undefined;
+export class GitApiEvents implements vscode.Disposable {
   private disposables: vscode.Disposable[] = [];
+  private attached = new WeakSet<any>();
 
-  constructor(private context: vscode.ExtensionContext, private player: Player) {
-    this.gitExtension = vscode.extensions.getExtension('vscode.git');
-  }
+  constructor(private context: vscode.ExtensionContext, private player: Player) {}
 
-  public activate(): void {
-    if (!this.gitExtension) {
+  public async activate(): Promise<void> {
+    const ext = vscode.extensions.getExtension('vscode.git');
+    if (!ext) {
+      this.player.log('vscode.git extension not found');
       return;
     }
 
-    const api = this.gitExtension.exports;
+    try {
+      if (!ext.isActive) {
+        await ext.activate();
+      }
+    } catch (err) {
+      this.player.log('Failed to activate vscode.git extension');
+      return;
+    }
+
+    const api = ext.exports?.getAPI?.(1);
     if (!api || !api.repositories) {
+      this.player.log('Git extension API v1 not available');
       return;
     }
 
-    const repositories = api.repositories;
-    for (const repo of repositories) {
-      this.attachRepositoryHandlers(repo);
+    for (const repo of api.repositories) {
+      this.attach(repo);
     }
 
-    const onDidChangeRepositories = api.onDidChangeRepositories;
-    if (onDidChangeRepositories) {
+    const onDidOpen = api.onDidOpenRepository;
+    if (typeof onDidOpen === 'function') {
       this.disposables.push(
-        onDidChangeRepositories((e: any) => {
-          if (e.added) {
-            for (const repo of e.added) {
-              this.attachRepositoryHandlers(repo);
-            }
-          }
+        onDidOpen((repo: any) => {
+          this.attach(repo);
         })
       );
     }
   }
 
-  private attachRepositoryHandlers(repo: any): void {
-    if (repo.onDidCommit) {
-      this.disposables.push(
-        repo.onDidCommit((e: any) => {
-          void this.player.play('commit.mp3');
-        })
-      );
+  private attach(repo: any): void {
+    if (this.attached.has(repo)) {
+      return;
     }
+    this.attached.add(repo);
 
-    if (repo.onDidPush) {
+    if (typeof repo.onDidCommit === 'function') {
       this.disposables.push(
-        repo.onDidPush((e: any) => {
-          void this.player.play('push.mp3');
+        repo.onDidCommit(() => {
+          void this.player.play('commit.mp3');
         })
       );
     }
