@@ -67,6 +67,25 @@ Open VS Code Settings and search for **GitEffects**, or edit `settings.json` dir
 
 A status bar item (`$(unmute)` / `$(mute) GitEffects`) runs the toggle command and updates when settings change.
 
+## Custom sounds
+
+Replace any bundled sound by putting your own file in the `sounds/` folder with the same name, or point GitEffects at a custom folder:
+
+1. Create a folder anywhere, e.g. `~/giteffects-sounds/`
+2. Copy files into it using the exact names from the table above:
+   - `commit.mp3`
+   - `push.mp3`
+   - `force_push.mp3`
+   - `merge_conflict.mp3`
+   - `reset.mp3`
+   - `delete_branch.mp3`
+   - `tests_fail.mp3`
+   - `terminal_fail.mp3`
+3. Open VS Code Settings (`Cmd+,`) → search for **GitEffects: Sounds Path** → paste the folder path
+4. Use **GitEffects: Play a Test Sound** to preview
+
+If a file is missing from the custom folder, GitEffects falls back to the bundled sound. Supported formats: `.mp3`, `.wav`, `.ogg` (depends on OS player).
+
 ## Development
 
 ```bash
