@@ -79,9 +79,8 @@ Press `F5` in VS Code to launch an Extension Development Host for testing.
 ## Platform notes
 
 - Sound playback uses OS-native players (`afplay` on macOS, PowerShell on Windows, `ffplay`/`mpg123`/`cvlc` on Linux).
-- Terminal shell integration needs a compatible shell. If unavailable, terminal events are silently skipped.
+- Terminal shell integration needs a compatible shell (bash, zsh, fish, PowerShell) and a host that emits `onDidEndTerminalShellExecution` events. If unavailable, the following sounds are silently skipped from the terminal: `force_push.mp3`, `reset.mp3`, `delete_branch.mp3`, `tests_fail.mp3`, `terminal_fail.mp3`. In Antigravity, only `commit.mp3`, `push.mp3`, and `merge_conflict.mp3` work from the terminal today. All 8 sounds can still be previewed via the **GitEffects: Play a Test Sound** command.
 
 ## License
 
 MIT — Copyright (c) TheHotGuy69
-# test
